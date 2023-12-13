@@ -54,6 +54,7 @@ get_cpu_info() {
     echo "CPU Architecture: $cpu_architecture"
     echo "CPU Maximum Speed: $cpu_speed"
     echo "Cache Sizes: $cache_info"
+    echo "CPU Core Count: $cpu_cores"
 }
 
 #function to get OS information
@@ -69,9 +70,53 @@ get_os_info() {
     echo "Linux Distro: $linux_distro"
     echo "Distro Version: $distro_version"
 }
+#Function to get RAM information of computer
+get_ram_info() {
+    section_title "RAM Information"
+    ram_info=$(lshw -class memory 2>/dev/null)
+    [ $? -ne 0 ] && handle_error 4 "Failed to retrive RAM information."
 
-#function to get and display information of computer 
+    echo ""
+    echo "Installed Memory Components:"
+    echo "---------------------------"
+    echo "Manufacturer | Model | Size | Speed | Location"
+    echo "---------------------------------------------"
+
+    while IFS= read -r line; do
+        manufacturer=$(echo "$line" | awk -F': ' '/vendor:/ {print $2}')
+        model=$(echo "$line" | awk -F': ' '/product:/ {print $2}')
+        size=$(echo "$line" | awk -F': ' '/size:/ {print $2}')
+        speed=$(echo "$line" | awk -F': ' '/clock:/ {print $2}')
+        location=$(echo "$line" | awk -F': ' '/slot:/ {print $2}')
+
+        echo "$manufacturer | $model | $size | $speed | $location"
+    done <<< "$(echo "$ram_info" | awk '/product:/ || /size:/ || /clock:/ || /slot:/')"
+
+    echo "----------------------------------------------"
+}
+
+#Function to get the disk storage information of computer
+get_disk_info() {
+    section_title "Disk Storage Information"
+
+    echo ""
+    echo "Installed Disk Drives:"
+    echo "-----------------------"
+    echo "Manufacturer | Model | Size | Partition | Mount Point | Filesystem Size | Free Space"
+    echo "------------------------------------------------------------------------------------"
+
+    lsblk -o NAME,VENDOR,MODEL,SIZE,MOUNTPOINT -p -e 7,11 -nr | while read -r name vendor model size mount_point; do
+        filesystem_size=$(df -h | awk -v mount="$mount_Point" '$6==mount {print $2}')
+        free_space=$(df -h | awk -v mount="$mount_point" '$6==mount {print $4}')
+
+        echo "$vendor | $model | $size | $mount_point | $filesystem_size | $free_space"
+    done
+
+    echo "----------------------------------------------------------------------------------"
+}
+#function to get and display information of computer
 get_system_info
 get_cpu_info
 get_os_info
- 
+get_ram_info
+get_disk_info
