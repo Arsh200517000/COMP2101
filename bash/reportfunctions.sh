@@ -25,7 +25,7 @@ errormessage() {
 cpureport() {
     section_title "CPU Report"
     echo "------------------------------------------------------------------------------"
-    echo "CPU manufacturer and model: $(lscpu | awk '/^model name:/ {print $3, $4, $5, $^, $&}')"
+    echo "CPU manufacturer and model: $(lscpu | awk '/^model name:/ {print $3, $4, $5, $6, $7}')"
     echo "CPU architecture: $(lscpu | awk '/^architecture:/ {print $2}')"
     echo "CPU core count: $(lscpu | awk '/^CPU\(s\):/ {print $2}')"
     echo "CPU maximum speed: $(lscpu | awk '/^CPU max MHz:/ {print $4 " MHz"}')"
@@ -48,29 +48,45 @@ computerreport() {
 
 #function to generate RAM report
 ramreport () {
-    section_title "RAM Report"
-    echo "installed memory components:"
+    section_title "RAM report"
+    ram_info=$(lshw -class memory 2>/dev/null)
+    [ $? -ne 0 ] && handle_error 4 "Failed to retrive RAM information."
+
+    echo ""
+    echo "Installed Memory Components:"
     echo "---------------------------"
-    echo "manufacturer | model | size | speed | physical location"
-    echo "-------------------------------------------------------"
-    dmidecode -t memory | awk '/manufacturer:|product name:|size:|speed:|location:/{print $2 " " $3 " " $4 "|"} /size:/{print ""}'
-    echo "-------------------------------------------------------"
-    total_ram=$(free -h | awk '/^Mem:/ {Print $2}')
-    echo " total size of installed RAM: $total_ram"
+    echo "Manufacturer | Model | Size | Speed | Location"
+    echo "---------------------------------------------"
+
+    while IFS= read -r line; do
+        manufacturer=$(echo "$line" | awk -F': ' '/vendor:/ {print $2}')
+        model=$(echo "$line" | awk -F': ' '/product:/ {print $2}')
+        size=$(echo "$line" | awk -F': ' '/size:/ {print $2}')
+        speed=$(echo "$line" | awk -F': ' '/clock:/ {print $2}')
+        location=$(echo "$line" | awk -F': ' '/slot:/ {print $2}')
+
+        echo "$manufacturer | $model | $size | $speed | $location"
+    done <<< "$(echo "$ram_info" | awk '/product:/ || /size:/ || /clock:/ || /slot:/')"
+
+    echo "----------------------------------------------"
 }
+
 
 #function to generate OS report
 osreport() {
     section_title "OS Report"
-    echo "Linux Distro: $(lab_release -si)"
+    echo "Linux Distro: $(lsb_release -si)"
     echo "Distro Version: $(lsb_release -sr)"
 }
 
 #function to generate a video report
 videoreport() {
     section_title "Video Report"
-    echo "Video Card/Chipset Manufacturer: $(lspci | grep VGA | awk -F ': ' '{print $3}')"
-    echo "Video Card/Chipset Description or model: $(lspci | grep VGA | awk -F ': ' '{print $2}')"
+    echo "video card info:"
+    echo "-----------------------"
+    lspci | grep VGA
+
+    echo ""
 }
 
 
@@ -89,8 +105,14 @@ diskreport() {
 networkreport() {
     section_title "Network Report"
     echo "installed network interfaces:"
-    echo"-----------------------------"
-    echo "interface |manufacturer | model/description | link state | current speed | ip addresses | bridge master | dns servers | search domain"
-    echo "---------------------------------------------------------------------------------------- "
+    echo "--------------------------"
+    ip -o link show | awk -F': ' '{print $2}'
+
+    echo ""
+    echo "IP Addresses:"
+    echo "-------------"
+    ip -4 addr show | awk '/inet / {print $2, $3}'
+
+    echo ""
 }
 
